@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เกมทดสอบพิมพ์เร็ว (English/ไทย) - Words & Chars</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            touch-action: manipulation;
+        }
+
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
+        }
+
+        @keyframes shake {
+
+            10%,
+            90% {
+                transform: translate3d(-1px, 0, 0);
+            }
+
+            20%,
+            80% {
+                transform: translate3d(2px, 0, 0);
+            }
+
+            30%,
+            50%,
+            70% {
+                transform: translate3d(-4px, 0, 0);
+            }
+
+            40%,
+            60% {
+                transform: translate3d(4px, 0, 0);
+            }
+        }
+        
+        #words-display {
+            font-size: 1.75rem; /* 28px */
+            line-height: 2.5rem; /* 40px */
+            height: 180px;
+            overflow-y: hidden;
+            display: flex;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            gap: 0.5rem 0.75rem;
+            letter-spacing: 0.025em;
+        }
+        
+        .word {
+            display: inline-block;
+            white-space: pre;
+        }
+        
+        .char.correct { color: #16a34a; }
+        .char.incorrect { color: #dc2626; text-decoration: underline; text-decoration-color: #ef4444; }
+        .char.current {
+            background-color: #3b82f6;
+            color: white;
+            border-radius: 2px;
+            animation: blink 1s infinite;
+        }
+        .char.untyped { color: #64748b; }
+        
+        @keyframes blink {
+            0%, 100% { background-color: #3b82f6; }
+            50% { background-color: #93c5fd; }
+        }
+
+        #char-display-box {
+            transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+        }
+        .flash-correct {
+            animation: flash-correct 0.4s ease-out;
+        }
+        @keyframes flash-correct {
+            30% {
+                transform: scale(1.05);
+                border-color: #22c55e;
+                box-shadow: 0 0 25px rgba(34, 197, 94, 0.5);
+            }
+        }
+        .flash-wrong {
+             animation: flash-wrong 0.5s ease;
+        }
+        @keyframes flash-wrong {
+             50% {
+                 border-color: #ef4444;
+                 box-shadow: 0 0 25px rgba(239, 68, 68, 0.6);
+             }
+        }
+
+        .selection-btn.active {
+            background-color: #3b82f6;
+            color: white;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        .selection-btn:not(.active) {
+            background-color: #e5e7eb;
+            color: #4b5563;
+        }
+
+        #fireworks-container {
+            z-index: 100;
+        }
+
+        .firework-particle {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            opacity: 1;
+            animation: explode 1s ease-out forwards;
+        }
+
+        @keyframes explode {
+            0% {
+                transform: translate(0, 0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translate(var(--x), calc(var(--y) + 200px));
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-5xl mx-auto p-4 sm:p-6">
+        <div id="main-container" class="bg-white rounded-2xl shadow-xl p-6 sm:p-8 transition-all">
+            <!-- Header -->
+            <div class="text-center mb-6">
+                <h1 class="text-3xl sm:text-4xl font-bold text-slate-800">เกมทดสอบพิมพ์เร็ว</h1>
+                <p class="text-slate-500 mt-2">เลือกภาษา ประเภท และโหมดเพื่อเริ่มทดสอบ!</p>
+            </div>
+
+            <!-- Game Area -->
+            <div id="game-area" class="bg-slate-50 rounded-xl p-4 sm:p-6 mb-6">
+                <!-- Word Typing Display -->
+                <div id="words-display-wrapper" class="hidden">
+                    <div id="words-display" class="font-mono text-slate-500"></div>
+                </div>
+                 <!-- Character Typing Display -->
+                <div id="character-display-wrapper" class="flex items-center justify-center min-h-[240px] sm:min-h-[280px]">
+                    <div id="char-display-box" class="bg-white rounded-2xl shadow-inner border-4 border-slate-200 w-56 h-56 sm:w-64 sm:h-64 flex items-center justify-center">
+                        <div id="char-display" class="text-[10rem] sm:text-[12rem] leading-none font-bold text-blue-500">?</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls and Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Left Column: Language & Type -->
+                <div class="bg-slate-50 rounded-xl p-5 flex flex-col gap-4">
+                     <div>
+                        <p class="text-slate-600 mb-2 font-medium">ภาษา (Language)</p>
+                        <div id="language-selection" class="grid grid-cols-2 gap-3">
+                            <button id="lang-en" class="selection-btn w-full font-semibold py-3 px-4 rounded-lg transition-all duration-200">English</button>
+                            <button id="lang-th" class="selection-btn w-full font-semibold py-3 px-4 rounded-lg transition-all duration-200">ไทย</button>
+                        </div>
+                    </div>
+                     <div>
+                        <p class="text-slate-600 mb-2 font-medium">ประเภท (Type)</p>
+                        <div id="type-selection" class="grid grid-cols-2 gap-3">
+                            <button id="type-chars" class="selection-btn w-full font-semibold py-3 px-4 rounded-lg transition-all duration-200">ตัวอักษร</button>
+                            <button id="type-words" class="selection-btn w-full font-semibold py-3 px-4 rounded-lg transition-all duration-200">คำศัพท์</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Middle Column: Timer & Mode -->
+                <div class="bg-slate-50 rounded-xl p-5 flex flex-col gap-4 text-center">
+                    <div>
+                         <p class="text-slate-600 mb-1">เวลา (Time)</p>
+                         <div id="timer" class="text-6xl sm:text-7xl font-bold text-slate-700">0.00</div>
+                    </div>
+                    <div>
+                        <p class="text-slate-600 mb-2 font-medium">โหมด (Mode)</p>
+                        <div id="mode-selection" class="grid grid-cols-2 gap-3">
+                            <button id="mode-sorted" class="selection-btn w-full font-semibold py-3 px-4 rounded-lg transition-all duration-200">เรียง</button>
+                            <button id="mode-shuffled" class="selection-btn w-full font-semibold py-3 px-4 rounded-lg transition-all duration-200">สุ่ม</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Action Buttons -->
+                <div class="bg-slate-50 rounded-xl p-5 flex flex-col justify-center gap-4">
+                     <button id="start-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-8 rounded-lg text-xl transition-all duration-200 shadow-md hover:shadow-lg transform active:scale-95">
+                        เริ่มเกม
+                    </button>
+                    <button id="quit-btn" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-8 rounded-lg text-xl transition-all duration-200 shadow-md hover:shadow-lg transform active:scale-95 hidden">
+                        เลิกเล่น
+                    </button>
+                </div>
+            </div>
+             <!-- Hidden input for mobile focus -->
+             <input type="text" id="focus-input" class="absolute top-[-9999px] left-[-9999px] opacity-0 w-0 h-0">
+        </div>
+
+        <!-- Result Modal -->
+        <div id="result-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 hidden z-50">
+            <div id="modal-content" class="bg-white rounded-2xl shadow-xl p-8 text-center max-w-md w-full mx-4 transform transition-all duration-300 ease-out scale-95 opacity-0">
+                <h2 class="text-2xl font-bold text-slate-800 mb-2">สำเร็จ! (Complete!)</h2>
+                <div class="text-left bg-slate-100 p-4 rounded-lg my-6 space-y-3">
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-slate-600 text-lg">WPM:</span>
+                        <span id="stats-wpm" class="font-bold text-blue-500 text-4xl">0</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-600">เวลา (Time):</span>
+                        <span id="final-time" class="font-semibold text-slate-800">0.00s</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-600">ความแม่นยำ (Accuracy):</span>
+                        <span id="stats-accuracy" class="font-semibold text-green-600">0%</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-600">พิมพ์ถูก/ผิด (Correct/Incorrect):</span>
+                        <span class="font-semibold text-slate-800"><span id="stats-correct">0</span> / <span id="stats-incorrect" class="text-red-500">0</span></span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <button id="restart-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-lg transition-all transform active:scale-95">
+                        เล่นอีกครั้ง (Play Again)
+                    </button>
+                    <button id="close-modal-btn" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-8 rounded-lg text-lg transition-all">
+                        ปิด (Close)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="fireworks-container" class="fixed inset-0 pointer-events-none"></div>
+
+    <script>
+    // --- DOM Elements ---
+    const getEl = (id) => document.getElementById(id);
+    const charDisplay = getEl('char-display');
+    const charDisplayBox = getEl('char-display-box');
+    const timerDisplay = getEl('timer');
+    const startBtn = getEl('start-btn');
+    const quitBtn = getEl('quit-btn');
+    const resultModal = getEl('result-modal');
+    const modalContent = getEl('modal-content');
+    const restartBtn = getEl('restart-btn');
+    const closeModalBtn = getEl('close-modal-btn');
+    const mainContainer = getEl('main-container');
+    const focusInput = getEl('focus-input');
+
+    const wordsDisplayWrapper = getEl('words-display-wrapper');
+    const characterDisplayWrapper = getEl('character-display-wrapper');
+    const wordsDisplay = getEl('words-display');
+    const fireworksContainer = getEl('fireworks-container');
+    
+    const selectionButtons = {
+        lang: { th: getEl('lang-th'), en: getEl('lang-en') },
+        type: { chars: getEl('type-chars'), words: getEl('type-words') },
+        mode: { sorted: getEl('mode-sorted'), shuffled: getEl('mode-shuffled') }
+    };
+
+    // --- Game Data ---
+    const dataSets = {
+        th: {
+            chars: ['ก', 'ข', 'ฃ', 'ค', 'ฅ', 'ฆ', 'ง', 'จ', 'ฉ', 'ช', 'ซ', 'ฌ', 'ญ', 'ฎ', 'ฏ', 'ฐ', 'ฑ', 'ฒ', 'ณ', 'ด', 'ต', 'ถ', 'ท', 'ธ', 'น', 'บ', 'ป', 'ผ', 'ฝ', 'พ', 'ฟ', 'ภ', 'ม', 'ย', 'ร', 'ล', 'ว', 'ศ', 'ษ', 'ส', 'ห', 'ฬ', 'อ', 'ฮ'],
+            words: ['การ', 'เขา', 'ฉัน', 'เธอ', 'ไป', 'มา', 'กิน', 'นอน', 'ดู', 'ฟัง', 'พูด', 'เขียน', 'อ่าน', 'เรียน', 'ทำงาน', 'บ้าน', 'รถ', 'เงิน', 'ทอง', 'รัก', 'ชอบ', 'สวย', 'หล่อ', 'ดี', 'ใหม่', 'เก่า', 'ใหญ่', 'เล็ก', 'มาก', 'น้อย', 'สวัสดี', 'ขอบคุณ', 'ขอโทษ', 'ประเทศไทย', 'กรุงเทพ', 'คอมพิวเตอร์', 'โปรแกรม', 'ภาษาไทย', 'สนุก', 'มีความสุข']
+        },
+        en: {
+            chars: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'],
+            words: ['the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'I', 'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their', 'what', 'so', 'up', 'out', 'if', 'about', 'who', 'get', 'which', 'go', 'me', 'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know', 'take', 'people', 'into', 'year', 'your', 'good', 'some', 'could', 'them', 'see', 'other', 'than', 'then', 'now', 'look', 'only', 'come', 'its', 'over', 'think', 'also', 'back', 'after', 'use', 'two', 'how', 'our', 'work', 'first', 'well', 'way', 'even', 'new', 'want', 'because', 'any', 'these', 'give', 'day', 'most', 'us']
+        }
+    };
+
+    // --- Game State ---
+    let gameState = {
+        active: false,
+        lang: 'en', // Default to English
+        type: 'chars',
+        mode: 'sorted',
+        
+        sourceItems: [],
+        currentItemIndex: 0,
+        currentCharIndex: 0, 
+
+        startTime: 0,
+        timerInterval: null,
+        
+        stats: {
+            correctChars: 0,
+            incorrectChars: 0,
+            totalCharsTyped: 0
+        }
+    };
+    
+    // --- Functions ---
+    
+    function resetUI() {
+        charDisplay.textContent = '?';
+        timerDisplay.textContent = '0.00';
+        timerDisplay.classList.remove('text-green-500');
+        wordsDisplay.innerHTML = '';
+        updateGameAreaVisibility();
+    }
+    
+    function updateGameAreaVisibility() {
+        if (gameState.type === 'chars') {
+            characterDisplayWrapper.classList.remove('hidden');
+            wordsDisplayWrapper.classList.add('hidden');
+        } else {
+            characterDisplayWrapper.classList.add('hidden');
+            wordsDisplayWrapper.classList.remove('hidden');
+        }
+    }
+
+    function setSelection(category, value) {
+        if (gameState.active) return;
+        gameState[category] = value;
+        
+        Object.keys(selectionButtons[category]).forEach(key => {
+            const btn = selectionButtons[category][key];
+            if (key === value) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        
+        if (category === 'type') {
+           updateGameAreaVisibility();
+        }
+    }
+
+    function startGame() {
+        gameState.active = true;
+        gameState.currentItemIndex = 0;
+        gameState.currentCharIndex = 0;
+        gameState.stats = { correctChars: 0, incorrectChars: 0, totalCharsTyped: 0 };
+        
+        clearInterval(gameState.timerInterval);
+        hideResultModal();
+        
+        Object.values(selectionButtons).forEach(group => 
+            Object.values(group).forEach(btn => btn.disabled = true)
+        );
+        startBtn.classList.add('hidden');
+        quitBtn.classList.remove('hidden');
+        
+        timerDisplay.classList.remove('text-green-500');
+        timerDisplay.textContent = '0.00';
+
+        let baseItems = dataSets[gameState.lang][gameState.type];
+        if (gameState.mode === 'shuffled') {
+            gameState.sourceItems = [...baseItems].sort(() => Math.random() - 0.5);
+            if(gameState.type === 'words') {
+                gameState.sourceItems = gameState.sourceItems.slice(0, 40);
+            }
+        } else {
+            gameState.sourceItems = [...baseItems];
+        }
+        
+        if (gameState.type === 'chars') {
+            updateTargetCharacter();
+        } else {
+            renderWords();
+        }
+
+        gameState.startTime = Date.now();
+        gameState.timerInterval = setInterval(updateTimer, 50);
+
+        focusInput.focus();
+    }
+
+    function updateTargetCharacter() {
+        if (gameState.currentItemIndex >= gameState.sourceItems.length) return;
+        const currentChar = gameState.sourceItems[gameState.currentItemIndex];
+        charDisplay.textContent = currentChar;
+    }
+
+    function renderWords() {
+        wordsDisplay.innerHTML = '';
+        const fragment = document.createDocumentFragment();
+        gameState.sourceItems.forEach((word, wordIndex) => {
+            const wordSpan = document.createElement('span');
+            wordSpan.classList.add('word');
+            wordSpan.id = `word-${wordIndex}`;
+            word.split('').forEach((char) => {
+                const charSpan = document.createElement('span');
+                charSpan.classList.add('char', 'untyped');
+                charSpan.textContent = char;
+                wordSpan.appendChild(charSpan);
+            });
+            fragment.appendChild(wordSpan);
+        });
+        wordsDisplay.appendChild(fragment);
+        updateCursor();
+    }
+    
+    function updateCursor() {
+        const oldCursor = wordsDisplay.querySelector('.char.current');
+        if (oldCursor) oldCursor.classList.remove('current');
+
+        if (gameState.currentItemIndex >= gameState.sourceItems.length) return;
+
+        const currentWordEl = wordsDisplay.querySelector(`#word-${gameState.currentItemIndex}`);
+        if(!currentWordEl) return;
+        const currentCharEl = currentWordEl.children[gameState.currentCharIndex];
+        if (currentCharEl) {
+            currentCharEl.classList.add('current');
+            const displayRect = wordsDisplay.getBoundingClientRect();
+            const cursorRect = currentCharEl.getBoundingClientRect();
+            if (cursorRect.bottom > displayRect.bottom || cursorRect.top < displayRect.top) {
+                currentCharEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
+        }
+    }
+
+    function updateTimer() {
+        if (!gameState.active) return;
+        const elapsedTime = (Date.now() - gameState.startTime) / 1000;
+        timerDisplay.textContent = elapsedTime.toFixed(2);
+    }
+
+    function handleKeyPress(e) {
+        if (!gameState.active) return;
+        
+        if (e.key === ' ' || e.key === 'Backspace' || e.key.length === 1) {
+            e.preventDefault();
+        }
+        
+        if (gameState.type === 'chars') {
+            handleCharInput(e.key);
+        } else {
+            handleWordInput(e.key);
+        }
+    }
+
+    function triggerAnimation(element, animationClass, duration) {
+        if (element.classList.contains(animationClass)) return;
+        element.classList.add(animationClass);
+        setTimeout(() => {
+            element.classList.remove(animationClass);
+        }, duration);
+    }
+
+    function handleCharInput(inputKey) {
+        if (inputKey.length > 1) return;
+        if (gameState.currentItemIndex >= gameState.sourceItems.length) return;
+
+        const expectedChar = gameState.sourceItems[gameState.currentItemIndex];
+        if (inputKey.toLowerCase() === expectedChar.toLowerCase()) {
+            gameState.stats.correctChars++;
+            triggerAnimation(charDisplayBox, 'flash-correct', 400);
+            
+            gameState.currentItemIndex++;
+            if (gameState.currentItemIndex >= gameState.sourceItems.length) {
+                endGame();
+            } else {
+                updateTargetCharacter();
+            }
+        } else {
+            gameState.stats.incorrectChars++;
+            triggerAnimation(mainContainer, 'shake', 500);
+            triggerAnimation(charDisplayBox, 'flash-wrong', 500);
+        }
+        gameState.stats.totalCharsTyped++;
+    }
+
+    function handleWordInput(inputKey) {
+        const currentWord = gameState.sourceItems[gameState.currentItemIndex];
+        if (!currentWord) return;
+        const currentWordEl = wordsDisplay.querySelector(`#word-${gameState.currentItemIndex}`);
+        
+        if (inputKey === ' ') {
+            if (gameState.currentCharIndex === 0) return; 
+            if (gameState.currentCharIndex < currentWord.length) {
+                for (let i = gameState.currentCharIndex; i < currentWord.length; i++) {
+                   currentWordEl.children[i].className = 'char incorrect';
+                   gameState.stats.incorrectChars++;
+                }
+            }
+            gameState.stats.correctChars++;
+            moveToNextWord();
+            return;
+        }
+        
+        if (inputKey === 'Backspace') {
+            if (gameState.currentCharIndex > 0) {
+                 gameState.currentCharIndex--;
+                 const charEl = currentWordEl.children[gameState.currentCharIndex];
+                 charEl.className = 'char untyped current';
+            } else if (gameState.currentItemIndex > 0) {
+                moveToNextWord(-1);
+                const prevWord = gameState.sourceItems[gameState.currentItemIndex];
+                gameState.currentCharIndex = prevWord.length;
+            }
+            updateCursor();
+            return;
+        }
+
+        if (inputKey.length === 1 && gameState.currentCharIndex < currentWord.length) {
+            const expectedChar = currentWord[gameState.currentCharIndex];
+            const charEl = currentWordEl.children[gameState.currentCharIndex];
+            
+            if (inputKey === expectedChar) {
+                charEl.className = 'char correct';
+                gameState.stats.correctChars++;
+            } else {
+                charEl.className = 'char incorrect';
+                gameState.stats.incorrectChars++;
+                triggerAnimation(mainContainer, 'shake', 500);
+            }
+            gameState.currentCharIndex++;
+
+            if (gameState.currentCharIndex === currentWord.length) {
+            }
+            updateCursor();
+        }
+    }
+    
+    function moveToNextWord(direction = 1) {
+         gameState.currentItemIndex += direction;
+         gameState.currentCharIndex = 0;
+         
+         if (gameState.currentItemIndex >= gameState.sourceItems.length) {
+             endGame();
+         } else {
+             updateCursor();
+         }
+    }
+
+    function endGame() {
+        if (!gameState.active) return;
+        gameState.active = false;
+        clearInterval(gameState.timerInterval);
+        
+        timerDisplay.classList.add('text-green-500');
+        Object.values(selectionButtons).forEach(group => 
+            Object.values(group).forEach(btn => btn.disabled = false)
+        );
+        quitBtn.classList.add('hidden');
+        startBtn.classList.remove('hidden');
+        
+        if (gameState.type === 'chars') {
+             charDisplay.textContent = '🎉';
+        }
+
+        launchFireworks();
+        showResultModal();
+    }
+
+    function quitGame() {
+        if (!gameState.active) return;
+        gameState.active = false;
+        clearInterval(gameState.timerInterval);
+        
+        resetUI();
+        
+        Object.values(selectionButtons).forEach(group => 
+            Object.values(group).forEach(btn => btn.disabled = false)
+        );
+        quitBtn.classList.add('hidden');
+        startBtn.classList.remove('hidden');
+    }
+    
+    function showResultModal() {
+        const elapsedTimeSeconds = (Date.now() - gameState.startTime) / 1000;
+        const elapsedTimeMinutes = elapsedTimeSeconds / 60;
+
+        let grossWPM = 0;
+        if (elapsedTimeMinutes > 0) {
+            const totalCharsForWPM = gameState.stats.correctChars + gameState.stats.incorrectChars;
+            grossWPM = (totalCharsForWPM / 5) / elapsedTimeMinutes;
+        }
+        
+        const totalTyped = gameState.stats.correctChars + gameState.stats.incorrectChars;
+        const accuracy = totalTyped > 0 ? ((gameState.stats.correctChars / totalTyped) * 100) : 100;
+        
+        getEl('stats-wpm').textContent = Math.round(grossWPM);
+        getEl('final-time').textContent = `${elapsedTimeSeconds.toFixed(2)}s`;
+        getEl('stats-accuracy').textContent = `${accuracy.toFixed(1)}%`;
+        getEl('stats-correct').textContent = gameState.stats.correctChars;
+        getEl('stats-incorrect').textContent = gameState.stats.incorrectChars;
+
+        resultModal.classList.remove('hidden');
+        setTimeout(() => {
+            modalContent.classList.remove('scale-95', 'opacity-0');
+        }, 10);
+    }
+
+    function hideResultModal() {
+        modalContent.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => {
+            resultModal.classList.add('hidden');
+        }, 300);
+    }
+    
+    function launchFireworks() {
+        const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800'];
+        const numBursts = 8;
+        const particlesPerBurst = 40;
+        for(let i = 0; i < numBursts; i++) {
+            setTimeout(() => {
+                const burstX = Math.random() * window.innerWidth;
+                const burstY = Math.random() * (window.innerHeight / 2);
+                for (let j = 0; j < particlesPerBurst; j++) {
+                    const particle = document.createElement('div');
+                    particle.classList.add('firework-particle');
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = Math.random() * 120 + 30;
+                    const endX = Math.cos(angle) * distance;
+                    const endY = Math.sin(angle) * distance;
+                    particle.style.left = `${burstX}px`;
+                    particle.style.top = `${burstY}px`;
+                    particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    particle.style.setProperty('--x', `${endX}px`);
+                    particle.style.setProperty('--y', `${endY}px`);
+                    fireworksContainer.appendChild(particle);
+                    setTimeout(() => particle.remove(), 1000);
+                }
+            }, i * 150);
+        }
+    }
+
+    // --- Event Listeners ---
+    startBtn.addEventListener('click', startGame);
+    quitBtn.addEventListener('click', quitGame);
+    restartBtn.addEventListener('click', () => {
+        hideResultModal();
+        setTimeout(startGame, 300);
+    });
+    closeModalBtn.addEventListener('click', () => {
+        hideResultModal();
+        resetUI();
+    });
+    
+    // Setup selection buttons
+    selectionButtons.lang.th.addEventListener('click', () => setSelection('lang', 'th'));
+    selectionButtons.lang.en.addEventListener('click', () => setSelection('lang', 'en'));
+    selectionButtons.type.chars.addEventListener('click', () => setSelection('type', 'chars'));
+    selectionButtons.type.words.addEventListener('click', () => setSelection('type', 'words'));
+    selectionButtons.mode.sorted.addEventListener('click', () => setSelection('mode', 'sorted'));
+    selectionButtons.mode.shuffled.addEventListener('click', () => setSelection('mode', 'shuffled'));
+    
+    window.addEventListener('keydown', handleKeyPress);
+    document.body.addEventListener('click', () => {
+        if (gameState.active) {
+            focusInput.focus();
+        }
+    });
+
+    // --- Initial Setup ---
+    function initializeApp() {
+        resetUI();
+        setSelection('lang', 'en'); // Default to English
+        setSelection('type', 'chars');
+        setSelection('mode', 'sorted');
+    }
+    
+    initializeApp();
+    </script>
+</body>
+</html>
